@@ -5,15 +5,15 @@
 
 #######################################################
 ######################## TO DO ########################
-### - complete all pipeline steps					###
-### - folder structure in XNAT? Do the calls work?  ###
-### - subject list file call?						###
-###		- second call to the file? Does that work?  ###
-### - add flags for pipeline options				###
-### 	- add option to keep/erase previous files   ###
-### - more error checks and helpful error calls		###
-### - add verbose option with output				###
-### - deringing and ROBLEX brain ext?				###
+### - complete all pipeline steps
+### - folder structure in XNAT? Do the calls work?
+### - subject list file call?
+###		- second call to the file? Does that work?
+### - add flags for pipeline options
+### 	- add option to keep/erase previous files
+### - more error checks and helpful error calls
+### - add verbose option with output
+### - deringing and ROBLEX brain ext?
 
 
 Usage() {
@@ -44,7 +44,7 @@ EOF
 }
 
 ##############################################################################
-### PART 1: ESTIMATE WHITE MATTER RESPONSE FUNCTIONS FOR ALL SUBJECTS      ###
+### PART 1: ESTIMATE WHITE MATTER RESPONSE FUNCTIONS FOR ALL SUBJECTS
 ##############################################################################
 
 ##############################################################################
@@ -135,7 +135,7 @@ while IFS=',' read SUBJECT SESSION; do
 done < $SUBJ_LIST
 
 ##############################################################################
-### PART 2: CSD, ACT, connectome creation							       ###
+### PART 2: CSD, ACT, connectome creation
 ##############################################################################
 
 SUBJ_LIST=$1
