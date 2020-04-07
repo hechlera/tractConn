@@ -1,16 +1,16 @@
 #!bin/bash
 
-### author: ahechler
-### date:	200407
+### author:  ahechler
+### date:    200407
 
 #######################################################
 ######################## TO DO ########################
 ### - complete all pipeline steps
 ### - folder structure in XNAT? Do the calls work?
 ### - subject list file call?
-###		- second call to the file? Does that work?
+###	    - second call to the file? Does that work?
 ### - add flags for pipeline options
-### 	- add option to keep/erase previous files
+###     - add option to keep/erase previous files
 ### - more error checks and helpful error calls
 ### - add verbose option with output
 ### - deringing and ROBLEX brain ext?
@@ -177,8 +177,4 @@ while IFS=',' read SUBJECT SESSION; do
 	### STEP 7: ACT AND CONNECTOME CREATION
 	
 done < $SUBJ_LIST
-	
-	
-	
-	
 	
