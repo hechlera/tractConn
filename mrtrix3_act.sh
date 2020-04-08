@@ -5,8 +5,8 @@
 
 #######################################################
 ######################## TO DO ########################
-### - complete all pipeline steps
 ### - folder structure in XNAT? Do the calls work?
+### - we need atlas + MNI images somewhere on XNAT
 ### - subject list file call?
 ###	    - second call to the file? Does that work?
 ### - add flags for pipeline options
@@ -167,14 +167,99 @@ while IFS=',' read SUBJECT SESSION; do
 	##############################################################################
 	### STEP 5: T1 -> DWI registration
 	
+	# get files, prepare output names; transform DWI to nii for registration with FSL
+	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
+	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJECT}_ses-${SESSION}_T1w_bet.nii.gz"
+	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.mif")
+
+	mrconvert ${DWI_FILE} "${DWI_FILE%.mif}.nii.gz"
+
+	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.nii.gz")
+	DWI_3D="${DWI_FILE%.nii.gz}-3D.nii.gz"
+
+	# Create folder for transformation matrices
+	if [ ! -d ${ANAT_PATH}/registration_files ]; then
+		echo "Creating output folder for registration matrices"
+		mkdir ${ANAT_PATH}/registration_files
+	fi
+
+	REG_FOLDER=${ANAT_PATH}/registration_files
+
+	# Get 3D version of 4D DWI file
+	mrmath ${DWI_FILE} mean -axis 3 ${DWI_3D}
+
+	# BET on T1
+	### WARNING: Standard BET parameters might be to restrictive, resulting in cut-off grey matter
+	### Test different fractional intensity values (0 permissive - 1 restrictive; 0.5 = default)
+	robustfov -i ${MPRAGE_FILE} -r ${MPRAGE_FILE}
+	bet ${MPRAGE_FILE} ${MPRAGE_BET} -f 0.2 -R
+	MPRAGE_BET=$(find ${ANAT_PATH} -name "*T1w_bet.nii.gz")
+
+	# get transform matrix T1->3D DWI
+	flirt -in ${MPRAGE_BET} -ref ${DWI_3D} -omat ${REG_FOLDER}/T12DWI.mat -dof 6
+
+	# use mrtrix transformation to keep native voxel resolution
+	transformconvert ${REG_FOLDER}/T12DWI.mat ${MPRAGE_BET} ${DWI_3D} flirt_import ${REG_FOLDER}/T12DWI.mrtrix
+	mrtransform ${MPRAGE_BET} -linear ${REG_FOLDER}/T12DWI.mrtrix "${MPRAGE_BET%.nii.gz}_regDWI.nii.gz"
+	
 	##############################################################################
 	### STEP 6: ATLAS REGISTRATION / T1 PARCELLATION
+	
+	MPRAGE_REG=$(find ${ANAT_PATH} -name "*regDWI.nii.gz")
+	ATLAS=$(find ${PROJECT_DIRECTORY}/derivatives/PARCELLATION -name "Schaefer*.nii.gz")
+	MNI2mm=$(find ${PROJECT_DIRECTORY}/derivatives/PARCELLATION -name "MNI152_T1_1mm_brain.nii.gz")
+
+	# get transformmatrix from MNI->Sub, apply to atlas file (default affine reg (dof 12))
+	flirt -in ${MNI2mm} -ref ${MPRAGE_REG} -omat ${REG_FOLDER}/MNI2SUB.mat
+	flirt -in ${ATLAS} -ref ${MPRAGE_REG} -out "${ANAT_PATH}/Yeo400_reg.nii.gz" -init ${REG_FOLDER}/MNI2SUB.mat -applyxfm -interp nearestneighbour
 	
 	##############################################################################
 	### STEP 7: SEGMENTATION
 	
+	MPRAGE_SEG="${MPRAGE_REG%.nii.gz}_seg.nii.gz"
+	MPRAGE_GMWMI="${MPRAGE_REG%.nii.gz}_seg-gmwmi.nii.gz"
+
+	# Segmentation
+	5ttgen fsl ${MPRAGE_REG} ${MPRAGE_SEG} -premasked
+
+	# gray matter-white matter interface mask
+	MPRAGE_SEG=$(find ${ANAT_PATH} -name "*seg.nii.gz") 
+	5tt2gmwmi ${MPRAGE_SEG} ${MPRAGE_GMWMI}
+	
 	##############################################################################
-	### STEP 7: ACT AND CONNECTOME CREATION
+	### STEP 8: ACT AND CONNECTOME CREATION
+	
+	# get files (original DWI only for naming), name output
+	DWI_FILE=$(find ${DWI_PATH} -name "*dwi.mif")
+	FOD_FILE=$(find ${DWI_PATH} -maxdepth 1 -name "*dwi_fod.mif")
+	PARC_FILE=$(find ${ANAT_PATH} -name "Yeo400_reg_int.nii.gz")
+	SEG_FILE=$(find ${ANAT_PATH} -name "*T1w*seg.nii.gz")
+	GMWMI_FILE=$(find ${ANAT_PATH} -name "*T1w*seg-gmwmi.nii.gz")
+
+	TCK_OUT="${DWI_FILE%dwi.mif}tracts.tck"
+	TCKSFT_OUT="${DWI_FILE%dwi.mif}tracts-sift.tck"
+	CONN_OUT="${DWI_FILE%dwi.mif}connectome_zeros.csv"
+
+	# anatomically constrained tractography, seeding at GM-WM interface with 20m streamlines
+	tckgen ${FOD_FILE} ${TCK_OUT} -act ${SEG_FILE} -seed_gmwmi ${GMWMI_FILE} -backtrack -select 20M
+
+	echo "#########################################################"
+	echo "tckgen for ${SUBJ_ID} completed"
+	echo "#########################################################"
+
+	# filtering down to 1/4 - 5m streamlines
+	tcksift ${TCK_OUT} ${FOD_FILE} ${TCKSFT_OUT} -act ${SEG_FILE} -term_number 5m
+
+	echo "#########################################################"
+	echo "tcksift for ${SUBJ_ID} completed"
+	echo "#########################################################"
+
+	# create connectome matrix
+	tck2connectome -symmetric -zero_diagonal ${TCKSFT_OUT} ${PARC_FILE} ${CONN_OUT}
+
+	echo "#########################################################"
+	echo "connectome for ${SUBJ_ID} completed"
+	echo "#########################################################"
 	
 done < $SUBJ_LIST
 	
