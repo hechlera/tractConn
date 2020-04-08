@@ -5,14 +5,15 @@
 
 #######################################################
 ######################## TO DO ########################
+### - add flags for pipeline options
+###     - add option to keep/erase previous files
+### - more error checks and helpful error calls
+### - include set -e again
+### - add verbose option with output
 ### - folder structure in XNAT? Do the calls work?
 ### - we need atlas + MNI images somewhere on XNAT
 ### - subject list file call?
 ###	    - second call to the file? Does that work?
-### - add flags for pipeline options
-###     - add option to keep/erase previous files
-### - more error checks and helpful error calls
-### - add verbose option with output
 ### - deringing and ROBLEX brain ext?
 
 
@@ -43,6 +44,9 @@ EOF
     exit 1
 }
 
+# echo usage when called without arguments
+[ "$#" -ne 1 ] && Usage
+
 ##############################################################################
 ### PART 1: ESTIMATE WHITE MATTER RESPONSE FUNCTIONS FOR ALL SUBJECTS
 ##############################################################################
@@ -62,6 +66,7 @@ fi
 	
 # get csv list with subjects and sessions
 SUBJ_LIST=$1
+
 # iterate through all subjects and sessions based on provided file
 while IFS=',' read SUBJECT SESSION; do
 
@@ -74,12 +79,22 @@ while IFS=',' read SUBJECT SESSION; do
 	DWI_PATH=${SES_PATH}/dwi
 	ANAT_PATH=${SES_PATH}/anat
 
+	if [[ ! -d SUBJ_PATH || ! -d SES_PATH || ! -d DWI_PATH || ! -d ANAT_PATH ]]; then
+		echo "ERROR: BIDS compatible folderstructure not found. Please check layout"
+		exit 1
+	fi
+		
 	cd ${DWI_PATH}
 
 	DWI_FILE=$(find ${DWI_PATH} -name "*.nii.gz") 
 	BVEC_FILE=$(find ${DWI_PATH} -name "*.bvec") 
 	BVAL_FILE=$(find ${DWI_PATH} -name "*.bval")
 	JSON_FILE=$(find ${DWI_PATH} -name "*.json")
+	
+	if [[ -z DWI_FILE || -z BVEC_FILE || -z BVAL_FILE || -z JSON_FILE ]]; then
+		echo "ERROR: DWI data not complete. Original nii, bvec, bval ans json must be available"
+		exit 1
+	fi
 
 	# Added -json_import to store all info in mif header
 	mrconvert ${DWI_FILE} sub-${SUBJ_ID}_ses-${SES_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
@@ -169,7 +184,7 @@ while IFS=',' read SUBJECT SESSION; do
 	
 	# get files, prepare output names; transform DWI to nii for registration with FSL
 	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
-	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJECT}_ses-${SESSION}_T1w_bet.nii.gz"
+	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJ_ID}_ses-${SES_ID}_T1w_bet.nii.gz"
 	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.mif")
 
 	mrconvert ${DWI_FILE} "${DWI_FILE%.mif}.nii.gz"
