@@ -85,7 +85,7 @@ while IFS=',' read SUBJECT SESSION; do
 	DWI_PATH=${SES_PATH}/dwi
 	ANAT_PATH=${SES_PATH}/anat
 
-	if [[ ! -d SUBJ_PATH || ! -d SES_PATH || ! -d DWI_PATH || ! -d ANAT_PATH ]]; then
+	if [[ ! -d ${SUBJ_PATH} || ! -d ${SES_PATH} || ! -d ${DWI_PATH} || ! -d ${ANAT_PATH} ]]; then
 		echo "ERROR: BIDS compatible folderstructure not found. Please check layout"
 		exit 1
 	fi
@@ -97,7 +97,7 @@ while IFS=',' read SUBJECT SESSION; do
 	BVAL_FILE=$(find ${DWI_PATH} -name "*.bval")
 	JSON_FILE=$(find ${DWI_PATH} -name "*.json")
 	
-	if [[ -z DWI_FILE || -z BVEC_FILE || -z BVAL_FILE || -z JSON_FILE ]]; then
+	if [[ -z ${DWI_FILE} || -z ${BVEC_FILE} || -z ${BVAL_FILE} || -z ${JSON_FILE} ]]; then
 		echo "ERROR: DWI data not complete. Original nii, bvec, bval ans json must be available"
 		exit 1
 	else
@@ -147,7 +147,7 @@ while IFS=',' read SUBJECT SESSION; do
 	DWI_BCOR="${DWI_PP%.mif}-bcor.mif"
 	dwibiascorrect ${DWI_PP} ${DWI_BCOR} -ants
 	
-	if [[ -z DWI_BCOR ]]; then
+	if [[ -z ${DWI_BCOR} ]]; then
 		echo "ERROR: Pre-processing could not be completed"
 		exit 1
 		
