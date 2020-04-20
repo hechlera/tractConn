@@ -18,7 +18,7 @@
 ### - deringing and ROBLEX brain ext?
 ###     - move BET to beginning of script to allow early inspection?
 ###     - visual output into terminal possible? File? 
-
+### - SIFT2?
 
 Usage() {
     cat <<EOF
@@ -43,24 +43,33 @@ Usage: mrtrix3_act.sh *args
 
   Necessary flags:
 		-s: subject list as csv file (format: 2 columns; 1: subject ID, 2: session ID); must match BIDS data
-		- 
+		-d: directory with BIDS data. Subfolders MUST include /derivatives 
 EOF
     exit 1
 }
 
 ##############################################################################
 ### READ FLAGS
+#include:
+#-BET fractional intensity value
+#-ACT: streamlines + SIFT streamlines
+#ToDo:
+#-does while read still work with the variables? How does the loop know which var to use it you only specify at the end?
 ##############################################################################
 
 # echo usage when called without arguments
 [ "$#" -ne 1 ] && Usage
 
-while getopts s: opt; do
+while getopts s:d: opt; do
 
 	case ${opt} in
 		
 		-s)
 			SUBJ_LIST=${OPTARG};;
+			SUBJ_LIST_2=${OPTARG};;
+			
+		-d)
+			PROJ_FOLDER=${OPTARG};;
 			
 	esac
 	
@@ -73,18 +82,12 @@ done
 ##############################################################################
 ### STEP 0: SETUP AND INITIATION
 
-# get base folder. next level must be \sourcedata and \derivatives
-PROJ_FOLDER=''
-
 # create output folder for CSD response functions 
 RFE_FOLDER=${PROJ_FOLDER}/derivatives/RFE_FOLDER
 
 if [ -d ${PROJECT_DIRECTORY}/derivatives/${RFE_FOLDER} ]; then
 	mkdir ${RFE_FOLDER}
 fi
-	
-# get csv list with subjects and sessions
-SUBJ_LIST=$1
 
 echo '############################'
 echo 'TractConn: Subject list read, searching for folders and files'
@@ -185,7 +188,6 @@ done < $SUBJ_LIST
 ### PART 2: CSD, ACT, connectome creation
 ##############################################################################
 
-SUBJ_LIST=$1
 while IFS=',' read SUBJECT SESSION; do
 
 	##############################################################################
@@ -348,5 +350,5 @@ while IFS=',' read SUBJECT SESSION; do
 	echo "connectome for ${SUBJ_ID} completed. Continuing with next subject"
 	echo "#########################################################"
 	
-done < $SUBJ_LIST
+done < $SUBJ_LIST_2
 	
