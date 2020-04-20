@@ -42,13 +42,29 @@ Usage: mrtrix3_act.sh *args
 		- connectome output as matrix in csv
 
   Necessary flags:
-		- subject list as csv file (format: 2 columns; 1: subject ID, 2: session ID)
+		-s: subject list as csv file (format: 2 columns; 1: subject ID, 2: session ID); must match BIDS data
+		- 
 EOF
     exit 1
 }
 
+##############################################################################
+### READ FLAGS
+##############################################################################
+
 # echo usage when called without arguments
 [ "$#" -ne 1 ] && Usage
+
+while getopts s: opt; do
+
+	case ${opt} in
+		
+		-s)
+			SUBJ_LIST=${OPTARG};;
+			
+	esac
+	
+done			
 
 ##############################################################################
 ### PART 1: ESTIMATE WHITE MATTER RESPONSE FUNCTIONS FOR ALL SUBJECTS
