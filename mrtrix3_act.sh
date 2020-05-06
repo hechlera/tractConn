@@ -5,7 +5,7 @@
 
 #######################################################
 ######################## TO DO ########################
-### - add flags for pipeline options
+### - more flexibility with flags for pipeline options
 ###     - add option to keep/erase previous files
 ###     - option to run parts of pipeline
 ### - more error checks and helpful error calls
@@ -43,7 +43,8 @@ Usage: mrtrix3_act.sh *args
 
   Necessary flags:
 		-s: subject list as csv file (format: 2 columns; 1: subject ID, 2: session ID); must match BIDS data
-		-d: directory with BIDS data. Subfolders MUST include /derivatives 
+		-i: input directory with BIDS data. Subfolders MUST include /derivatives 
+		-o: output directory
 EOF
     exit 1
 }
@@ -58,18 +59,23 @@ EOF
 ##############################################################################
 
 # echo usage when called without arguments
-[ "$#" -ne 1 ] && Usage
+[ "$#" == 0 ] && Usage
 
-while getopts s:d: opt; do
+while getopts "s:d:o:h:" opt; do
 
 	case ${opt} in
 		
-		-s)
+		s)
 			SUBJ_LIST=${OPTARG};;
-			SUBJ_LIST_2=${OPTARG};;
 			
-		-d)
+		i)
 			PROJ_FOLDER=${OPTARG};;
+		o)
+			OUT_FOLDER=${OPTARG};;
+		h)
+			Usage;;
+		?)
+			Usage;;
 			
 	esac
 	
@@ -89,7 +95,7 @@ if [ -d ${PROJECT_DIRECTORY}/derivatives/${RFE_FOLDER} ]; then
 	mkdir ${RFE_FOLDER}
 fi
 
-echo '############################'
+echo '#############################################################'
 echo 'TractConn: Subject list read, searching for folders and files'
 
 # iterate through all subjects and sessions based on provided file
@@ -350,5 +356,5 @@ while IFS=',' read SUBJECT SESSION; do
 	echo "connectome for ${SUBJ_ID} completed. Continuing with next subject"
 	echo "#########################################################"
 	
-done < $SUBJ_LIST_2
+done < $SUBJ_LIST
 	
