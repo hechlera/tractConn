@@ -54,8 +54,6 @@ EOF
 #include:
 #-BET fractional intensity value
 #-ACT: streamlines + SIFT streamlines
-#ToDo:
-#-does while read still work with the variables? How does the loop know which var to use it you only specify at the end?
 ##############################################################################
 
 # echo usage when called without arguments
