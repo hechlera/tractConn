@@ -1,7 +1,10 @@
-#!bin/bash
+#!/bin/bash
 
 ### author:  ahechler
 ### date:    200407
+
+### notes
+# - check for correct LUT table!
 
 #######################################################
 ######################## TO DO ########################
@@ -14,7 +17,6 @@
 ### - folder structure in XNAT? Do the calls work?
 ### - we need atlas + MNI images somewhere on XNAT
 ### - subject list file call?
-###	    - second call to the file? Does that work?
 ### - deringing and ROBLEX brain ext?
 ###     - move BET to beginning of script to allow early inspection?
 ###     - visual output into terminal possible? File? 
@@ -29,7 +31,8 @@ Usage: mrtrix3_act.sh *args
   All functions can be looked up in the MRtrix3 docs: https://mrtrix.readthedocs.io/en/latest/
   The pipeline intersects with various software: MRtrix3, FSL, freesurfer, ANTs
   Data has to be in a BIDS compatible format, with the following structure:
-		- \${PROJ_FOLDER}\derivatives\sub-{SUBJ_ID}\ses-{SES_ID}\anat...dwi...
+		- \input\sub-{SUBJ_ID}\anat...dwi...
+		- \input\data\ including parcellation file (i.e. aparc aseg from freesurfer) or atlas template and look up table
 		- only ONE unprocessed dwi and T1 file expected
 		
   All steps from inital preprocessing to tracogram (.tck) and connectome (.csv) output are included.
@@ -37,21 +40,22 @@ Usage: mrtrix3_act.sh *args
 		- dwi preprocessing: denoising, eddy, topup, bias correction
 		- Constrained Spherical Deconvolution (CSD) with response function estimation
 		- Parcellation OR atlas registration: Freesurfer recon-all OR MNI atlas -> individual T1 (i.e. Yeo400)
-		- ACT: Registration T1->DWI; T1 
+		- ACT: Registration T1->DWI
 		- Tractography: Probabilistic FOD method
 		- connectome output as matrix in csv
 
   Necessary flags:
-		-s: subject list as csv file (format: 2 columns; 1: subject ID, 2: session ID); must match BIDS data
-		-i: input directory with BIDS data. Subfolders MUST include /derivatives 
+		-s: subject list as txt or csv with one column specifying the subject IDs (i.e. s014\ns015 for sub-s014 folders)
+		-i: input directory with BIDS data and /data subfolder for parcellation files
 		-o: output directory
 EOF
     exit 1
 }
 
 ##############################################################################
-### READ FLAGS
+### ADD FLAGS
 #include:
+#- start at processing step X -> skip to that part 
 #-BET fractional intensity value
 #-ACT: streamlines + SIFT streamlines
 ##############################################################################
@@ -59,13 +63,12 @@ EOF
 # echo usage when called without arguments
 [ "$#" == 0 ] && Usage
 
-while getopts "s:d:o:h:" opt; do
+while getopts "s:i:o:h" opt; do
 
 	case ${opt} in
 		
 		s)
 			SUBJ_LIST=${OPTARG};;
-			
 		i)
 			PROJ_FOLDER=${OPTARG};;
 		o)
@@ -87,34 +90,61 @@ done
 ### STEP 0: SETUP AND INITIATION
 
 # create output folder for CSD response functions 
-RFE_FOLDER=${PROJ_FOLDER}/derivatives/RFE_FOLDER
+RFE_FOLDER=${OUT_FOLDER}/RFE_FOLDER
 
-if [ -d ${PROJECT_DIRECTORY}/derivatives/${RFE_FOLDER} ]; then
+if [ ! -d ${RFE_FOLDER} ]; then
 	mkdir ${RFE_FOLDER}
 fi
 
-echo '#############################################################'
-echo 'TractConn: Subject list read, searching for folders and files'
+echo '#############################################################################'
+echo 'TractConn: Subject list read, checking for completeness of folders and files'
 
 # iterate through all subjects and sessions based on provided file
-while IFS=',' read SUBJECT SESSION; do
+while IFS=',' read SUBJ_ID; do
 
 	##############################################################################
-	### STEP 1: MIF CONVERSION
-
+	### STEP 1: CHECK AND COPY FILES TO OUTPUT FOLDER
+	
+	# Set a flag that activates on errors
+	FLAG=0
+	
+	echo "Starting with subject ${SUBJ_ID}"
 	# Get folderpaths
-	SUBJ_PATH=${PROJ_FOLDER}/sub-${SUBJ_ID}/
-	SES_PATH=${SUBJ_PATH}/ses-${SES_ID}/
-	DWI_PATH=${SES_PATH}/dwi
-	ANAT_PATH=${SES_PATH}/anat
+	SUBJ_PATH=${PROJ_FOLDER}sub-${SUBJ_ID}
+	DWI_PATH=${SUBJ_PATH}/dwi
+	ANAT_PATH=${SUBJ_PATH}/anat
 
-	if [[ ! -d ${SUBJ_PATH} || ! -d ${SES_PATH} || ! -d ${DWI_PATH} || ! -d ${ANAT_PATH} ]]; then
+	if [[ ! -d ${SUBJ_PATH} || ! -d ${DWI_PATH} || ! -d ${ANAT_PATH} ]]; then
 		echo "ERROR: BIDS compatible folderstructure not found. Please check layout"
-		exit 1
+		FLAG=1
 	fi
-		
-	cd ${DWI_PATH}
-
+	
+	# Check for atlas files and MNI template
+	if [ $(find ${PROJ_FOLDER}data/ -name "Schaefer*.nii*" | wc -l) -ne 1 ]; then
+		echo "ERROR: Exactly one atlas from the Schaefer library must be provided"
+		FLAG=1
+	else
+		ATLAS=$(find ${PROJ_FOLDER} -name "Schaefer*.nii*")
+	fi
+	
+	MNI2mm=$(find ${FSLDIR}/data/standard -name "MNI152_T1_1mm_brain.nii.gz")
+	
+	if [[ -z ${ATLAS} || -z ${MNI2mm} ]]; then
+		echo 'ERROR: Yeo atlas and/or MNI2mm template were not found.'
+		FLAG=1
+	fi
+	
+	if [ $(find ${ANAT_PATH} -name "*T1w*.nii.gz" | wc -l) -ne 1 ]; then
+		echo "Either no T1 or multiple found. Please check input folder for correct naming: *T1w*.nii.gz."
+		FLAG=1
+	fi
+	
+	# Search for dwi files
+	if [ $(find ${DWI_PATH} -name "*.nii.gz" | wc -l) -gt 1 ]; then
+		echo "ERROR: Multiple dwi nifti files found. Only one can be provided"
+		FLAG=1
+	fi
+	
 	DWI_FILE=$(find ${DWI_PATH} -name "*.nii.gz") 
 	BVEC_FILE=$(find ${DWI_PATH} -name "*.bvec") 
 	BVAL_FILE=$(find ${DWI_PATH} -name "*.bval")
@@ -122,18 +152,59 @@ while IFS=',' read SUBJECT SESSION; do
 	
 	if [[ -z ${DWI_FILE} || -z ${BVEC_FILE} || -z ${BVAL_FILE} || -z ${JSON_FILE} ]]; then
 		echo "ERROR: DWI data not complete. Original nii, bvec, bval ans json must be available"
+		FLAG=1
+	fi
+	
+	if [ ${FLAG} -eq 1 ]; then
+		echo "Inital data not complete. Please refer to individual error messages before. Exiting pipeline."
 		exit 1
 	else
-		echo 'Necessary DWI data found. Beginning preprocessing of subject ${SUBJ_ID}'
+		echo "Initial data complete. Continuing with preprocessing."
 	fi
+	
+	# Check for completeness of output folder
+	if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID} ]; then
+		echo "Creating subject specific output folders"
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
+	else
+		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/anat ]; then
+			echo "Creating output folder for anatomical files"
+			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+		fi
+		
+		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi ]; then
+			echo "Creating output folder for anatomical files"
+			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
+		fi
+	fi
+	
+	# Copy T1 file to output folder, change path variable
 
+	echo "Copying T1 over to output folder for further processing"
+	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
+	cp ${MPRAGE_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/anat/
+	ANAT_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+		
+	# Copy dwi file to output folder, change path variable
+	cp ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/
+	DWI_FILE=$(find ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
+	
 	# Added -json_import to store all info in mif header
-	mrconvert ${DWI_FILE} sub-${SUBJ_ID}_ses-${SES_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
+	mrconvert ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
+	
+	DWI_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
 
 	##############################################################################
 	### STEP 2: PREPROCESSING
-
-	DWI_FILE=$(find ${DWI_PATH} -name "*dwi.mif")
+	
+	if [ $(find ${DWI_PATH} -name "*dwi.mif" | wc -l) -ne 1 ]; then
+		echo "DWI file not found in output/dwi folder. Please check."
+		exit 1
+	else
+		DWI_FILE=$(find ${DWI_PATH} -name "*dwi.mif")
+	fi
 
 	# define initial output file names
 	DWI_DENOISE="${DWI_FILE%.mif}_dn.mif"
@@ -192,7 +263,7 @@ done < $SUBJ_LIST
 ### PART 2: CSD, ACT, connectome creation
 ##############################################################################
 
-while IFS=',' read SUBJECT SESSION; do
+while IFS=',' read SUBJECT; do
 
 	##############################################################################
 	### STEP 4: CONSTRAINED SPHERICAL DECONVOLUTION
@@ -232,11 +303,11 @@ while IFS=',' read SUBJECT SESSION; do
 	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
 	
 	if [ -z ${MPRAGE_FILE} ]; then
-		echo 'Error: T1 image not found.'
+		echo 'Error: Base T1 image not found in output folder.'
 		exit 1
 	fi
 	
-	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJ_ID}_ses-${SES_ID}_T1w_bet.nii.gz"
+	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJ_ID}_T1w_bet.nii.gz"
 	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.mif")
 
 	mrconvert ${DWI_FILE} "${DWI_FILE%.mif}.nii.gz"
@@ -282,14 +353,6 @@ while IFS=',' read SUBJECT SESSION; do
 	
 	##############################################################################
 	### STEP 6: ATLAS REGISTRATION / T1 PARCELLATION
-	
-	ATLAS=$(find ${PROJECT_DIRECTORY}/derivatives/PARCELLATION -name "Schaefer*.nii.gz")
-	MNI2mm=$(find ${PROJECT_DIRECTORY}/derivatives/PARCELLATION -name "MNI152_T1_1mm_brain.nii.gz")
-	
-	if [ -z ${ATLAS} || -z ${MNI2mm} ];then
-		echo 'ERROR: Yeo400 atlas and/or MNI2mm template were not found.'
-		exit 1
-	fi
 
 	# get transformmatrix from MNI->Sub, apply to atlas file (default affine reg (dof 12))
 	flirt -in ${MNI2mm} -ref ${MPRAGE_REG} -omat ${REG_FOLDER}/MNI2SUB.mat
