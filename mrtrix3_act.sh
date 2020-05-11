@@ -191,7 +191,7 @@ while IFS=',' read SUBJ_ID; do
 	DWI_FILE=$(find ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
 	
 	# Change working directory
-	cd {OUT_FOLDER}
+	cd ${OUT_FOLDER}
 	
 	# Added -json_import to store all info in mif header
 	mrconvert ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
