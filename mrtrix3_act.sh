@@ -309,7 +309,6 @@ while IFS=',' read SUBJECT; do
 		exit 1
 	fi
 	
-	MPRAGE_BET="${ANAT_PATH}/sub-${SUBJ_ID}_T1w_bet.nii.gz"
 	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.mif")
 
 	mrconvert ${DWI_FILE} "${DWI_FILE%.mif}.nii.gz"
@@ -334,9 +333,12 @@ while IFS=',' read SUBJECT; do
 	### WARNING: Standard BET parameters might be to restrictive, resulting in cut-off grey matter
 	### Test different fractional intensity values (0 permissive - 1 restrictive; 0.5 = default)
 	echo 'WARNING: FSL BET is performed with fractional intensity value of 0.2. The default of 0.5 often cuts into the cortex. Check images afterwards.'
-	robustfov -i ${MPRAGE_FILE} -r ${MPRAGE_FILE}
-	bet ${MPRAGE_FILE} ${MPRAGE_BET} -f 0.2 -R
-	MPRAGE_BET=$(find ${ANAT_PATH} -name "*T1w_bet.nii.gz")
+	
+	robustfov -i ${MPRAGE_FILE} -r "${ANAT_PATH}/sub-${SUBJ_ID}_T1w_fov.nii.gz"
+	MPRAGE_FOV=$(find ${ANAT_PATH} -name "*T1w_fov.nii.gz")
+	MPRAGE_BET="${MPRAGE_FOV%.nii.gz}_bet.nii.gz"
+	bet ${MPRAGE_FOV} ${MPRAGE_BET} -f 0.2 -R
+	MPRAGE_BET=$(find ${ANAT_PATH} -name "*T1w*bet.nii.gz")
 
 	# get transform matrix T1->3D DWI
 	flirt -in ${MPRAGE_BET} -ref ${DWI_3D} -omat ${REG_FOLDER}/T12DWI.mat -dof 6
