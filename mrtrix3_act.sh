@@ -4,19 +4,18 @@
 ### date:    200407
 
 ### notes
-# - check for correct LUT table!
+# - check for correct LUT table
+# - -eddy options --slm=linear for 800 shells?
+# - interaction with xnat?
 
 #######################################################
 ######################## TO DO ########################
 ### - more flexibility with flags for pipeline options
 ###     - add option to keep/erase previous files
 ###     - option to run parts of pipeline
-### - more error checks and helpful error calls
+### - more error checks and helpful error calls?
 ### - include set -e again
 ### - add verbose option with output
-### - folder structure in XNAT? Do the calls work?
-### - we need atlas + MNI images somewhere on XNAT
-### - subject list file call?
 ### - deringing and ROBLEX brain ext?
 ###     - move BET to beginning of script to allow early inspection?
 ###     - visual output into terminal possible? File? 
@@ -190,6 +189,9 @@ while IFS=',' read SUBJ_ID; do
 	# Copy dwi file to output folder, change path variable
 	cp ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/
 	DWI_FILE=$(find ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
+	
+	# Change working directory
+	cd {OUT_FOLDER}
 	
 	# Added -json_import to store all info in mif header
 	mrconvert ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
