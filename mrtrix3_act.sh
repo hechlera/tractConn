@@ -162,20 +162,20 @@ while IFS=',' read SUBJ_ID; do
 	fi
 	
 	# Check for completeness of output folder
-	if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID} ]; then
+	if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID} ]; then
 		echo "Creating subject specific output folders"
-		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}
-		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
-		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
+		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}
+		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/anat
+		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/dwi
 	else
-		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/anat ]; then
+		if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID}/anat ]; then
 			echo "Creating output folder for anatomical files"
-			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+			mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/anat
 		fi
 		
-		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi ]; then
+		if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID}/dwi ]; then
 			echo "Creating output folder for anatomical files"
-			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
+			mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/dwi
 		fi
 	fi
 	
@@ -183,20 +183,20 @@ while IFS=',' read SUBJ_ID; do
 
 	echo "Copying T1 over to output folder for further processing"
 	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
-	cp ${MPRAGE_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/anat/
-	ANAT_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+	cp ${MPRAGE_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/anat/
+	ANAT_PATH=${OUT_FOLDER}sub-${SUBJ_ID}/anat
 		
 	# Copy dwi file to output folder, change path variable
-	cp ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/
-	DWI_FILE=$(find ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
+	cp ${DWI_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/
+	DWI_FILE=$(find ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
 	
 	# Change working directory
 	cd ${OUT_FOLDER}
 	
 	# Added -json_import to store all info in mif header
-	mrconvert ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
+	mrconvert ${DWI_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
 	
-	DWI_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
+	DWI_PATH=${OUT_FOLDER}sub-${SUBJ_ID}/dwi
 
 	##############################################################################
 	### STEP 2: PREPROCESSING
@@ -265,7 +265,7 @@ done < $SUBJ_LIST
 ### PART 2: CSD, ACT, connectome creation
 ##############################################################################
 
-while IFS=',' read SUBJECT; do
+while IFS=',' read SUBJ_ID; do
 
 	##############################################################################
 	### STEP 4: CONSTRAINED SPHERICAL DECONVOLUTION
@@ -332,7 +332,7 @@ while IFS=',' read SUBJECT; do
 	# BET on T1
 	### WARNING: Standard BET parameters might be to restrictive, resulting in cut-off grey matter
 	### Test different fractional intensity values (0 permissive - 1 restrictive; 0.5 = default)
-	echo 'WARNING: FSL BET is performed with fractional intensity value of 0.2. The default of 0.5 often cuts into the cortex. Check images afterwards.'
+	echo "WARNING: FSL BET is performed with fractional intensity value of 0.2. The default of 0.5 often cuts into the cortex. Check images afterwards."
 	
 	robustfov -i ${MPRAGE_FILE} -r "${ANAT_PATH}/sub-${SUBJ_ID}_T1w_fov.nii.gz"
 	MPRAGE_FOV=$(find ${ANAT_PATH} -name "*T1w_fov.nii.gz")
