@@ -375,7 +375,7 @@ while IFS=',' read SUBJ_ID; do
 	MPRAGE_SEG=$(find ${ANAT_PATH} -name "*seg.nii.gz") 
 	5tt2gmwmi ${MPRAGE_SEG} ${MPRAGE_GMWMI}
 	
-	if [ -z ${MPRAGE_SEG} || -z ${MPRAGE_GMWMI} ];then
+	if [[ -z ${MPRAGE_SEG} || -z ${MPRAGE_GMWMI} ]];then
 		echo 'ERROR: Segmentation could not be completed'
 		exit 1
 	else
