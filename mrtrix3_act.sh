@@ -390,7 +390,7 @@ while IFS=',' read SUBJ_ID; do
 	# fod file already in ${CSD}
 	FOD_FILE=$(find ${DWI_PATH} -maxdepth 1 -name "*dwi_fod.mif")
 	# this apparently includes a step before that converts all values to integer. Do testing.
-	PARC_FILE=$(find ${ANAT_PATH} -name "Yeo400_reg_int.nii.gz")
+	PARC_FILE=$(find ${ANAT_PATH} -name "Yeo400_reg.nii.gz")
 	# Seg already in ${MPRAGE_SEG}
 	SEG_FILE=$(find ${ANAT_PATH} -name "*T1w*seg.nii.gz")
 	# GMWMI already in ${MPRAGE_GMWMI}
