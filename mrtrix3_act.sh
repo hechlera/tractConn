@@ -6,7 +6,7 @@
 ### notes
 # - check for correct LUT table
 # - -eddy options --slm=linear for 800 shells?
-# - interaction with xnat?
+# - added slashes for paths back in case user enters without trailing /
 
 #######################################################
 ######################## TO DO ########################
@@ -109,7 +109,7 @@ while IFS=',' read SUBJ_ID; do
 	
 	echo "Starting with subject ${SUBJ_ID}"
 	# Get folderpaths
-	SUBJ_PATH=${PROJ_FOLDER}sub-${SUBJ_ID}
+	SUBJ_PATH=${PROJ_FOLDER}/sub-${SUBJ_ID}
 	DWI_PATH=${SUBJ_PATH}/dwi
 	ANAT_PATH=${SUBJ_PATH}/anat
 
@@ -162,20 +162,20 @@ while IFS=',' read SUBJ_ID; do
 	fi
 	
 	# Check for completeness of output folder
-	if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID} ]; then
+	if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID} ]; then
 		echo "Creating subject specific output folders"
-		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}
-		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/anat
-		mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/dwi
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
+		mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
 	else
-		if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID}/anat ]; then
+		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/anat ]; then
 			echo "Creating output folder for anatomical files"
-			mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/anat
+			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/anat
 		fi
 		
-		if [ ! -d ${OUT_FOLDER}sub-${SUBJ_ID}/dwi ]; then
+		if [ ! -d ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi ]; then
 			echo "Creating output folder for anatomical files"
-			mkdir ${OUT_FOLDER}sub-${SUBJ_ID}/dwi
+			mkdir ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
 		fi
 	fi
 	
@@ -183,20 +183,20 @@ while IFS=',' read SUBJ_ID; do
 
 	echo "Copying T1 over to output folder for further processing"
 	MPRAGE_FILE=$(find ${ANAT_PATH} -name "*T1w*.nii.gz")
-	cp ${MPRAGE_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/anat/
-	ANAT_PATH=${OUT_FOLDER}sub-${SUBJ_ID}/anat
+	cp ${MPRAGE_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/anat/
+	ANAT_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/anat
 		
 	# Copy dwi file to output folder, change path variable
-	cp ${DWI_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/
-	DWI_FILE=$(find ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
+	cp ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/
+	DWI_FILE=$(find ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/ -name "*.nii.gz")
 	
 	# Change working directory
 	cd ${OUT_FOLDER}
 	
 	# Added -json_import to store all info in mif header
-	mrconvert ${DWI_FILE} ${OUT_FOLDER}sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
+	mrconvert ${DWI_FILE} ${OUT_FOLDER}/sub-${SUBJ_ID}/dwi/sub-${SUBJ_ID}_dwi.mif -fslgrad ${BVEC_FILE} ${BVAL_FILE} -json_import ${JSON_FILE}
 	
-	DWI_PATH=${OUT_FOLDER}sub-${SUBJ_ID}/dwi
+	DWI_PATH=${OUT_FOLDER}/sub-${SUBJ_ID}/dwi
 
 	##############################################################################
 	### STEP 2: PREPROCESSING
