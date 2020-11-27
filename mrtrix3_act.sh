@@ -1,24 +1,30 @@
 #!/bin/bash
 
 ### author:  ahechler
-### date:    200407
+### date:    201006
+
+### new
+# - dtifit for FA map
+# - T1 to FA map reg for better quality
+# - T1 brain extraction using ANTs
 
 ### notes
+# - will be translated to python using NiPype in the long run
+# - path specification is annoying. Now only works if no / is provided
 # - check for correct LUT table
 # - -eddy options --slm=linear for 800 shells?
-# - added slashes for paths back in case user enters without trailing /
 
 #######################################################
 ######################## TO DO ########################
+### - Brain extraction for DWI?
 ### - more flexibility with flags for pipeline options
 ###     - add option to keep/erase previous files
 ###     - option to run parts of pipeline
 ### - more error checks and helpful error calls?
 ### - include set -e again
 ### - add verbose option with output
-### - deringing and ROBLEX brain ext?
-###     - move BET to beginning of script to allow early inspection?
-###     - visual output into terminal possible? File? 
+### - deringing?
+### - visual output into terminal possible? File? 
 ### - SIFT2?
 
 Usage() {
@@ -39,7 +45,7 @@ Usage: mrtrix3_act.sh *args
 		- dwi preprocessing: denoising, eddy, topup, bias correction
 		- Constrained Spherical Deconvolution (CSD) with response function estimation
 		- Parcellation OR atlas registration: Freesurfer recon-all OR MNI atlas -> individual T1 (i.e. Yeo400)
-		- ACT: Registration T1->DWI
+		- ACT: Registration T1->FA map
 		- Tractography: Probabilistic FOD method
 		- connectome output as matrix in csv
 
@@ -119,17 +125,21 @@ while IFS=',' read SUBJ_ID; do
 	fi
 	
 	# Check for atlas files and MNI template
-	if [ $(find ${PROJ_FOLDER}data/ -name "Schaefer*.nii*" | wc -l) -ne 1 ]; then
+	if [ $(find ${PROJ_FOLDER}/data/ -name "Schaefer*.nii*" | wc -l) -ne 1 ]; then
 		echo "ERROR: Exactly one atlas from the Schaefer library must be provided"
 		FLAG=1
 	else
 		ATLAS=$(find ${PROJ_FOLDER} -name "Schaefer*.nii*")
 	fi
 	
-	MNI2mm=$(find ${FSLDIR}/data/standard -name "MNI152_T1_1mm_brain.nii.gz")
+	# Check for MNI brain mask
 	
-	if [[ -z ${ATLAS} || -z ${MNI2mm} ]]; then
-		echo 'ERROR: Yeo atlas and/or MNI2mm template were not found.'
+	MNI2mm=$(find ${FSLDIR}/data/standard -name "MNI152_T1_1mm_brain.nii.gz")
+	MNI2mm_whole=$(find ${FSLDIR}/data/standard -name "MNI152_T1_1mm.nii.gz")
+	MNI2mm_mask=$(find ${FSLDIR}/data/standard -name "MNI152_T1_1mm_brain_mask.nii.gz")
+	
+	if [[ -z ${ATLAS} || -z ${MNI2mm} || -z ${MNI2mm_mask} || -z ${MNI2mm_whole} ]]; then
+		echo 'ERROR: Yeo atlas and/or MNI2mm/MNI2mm mask template were not found.'
 		FLAG=1
 	fi
 	
@@ -309,13 +319,58 @@ while IFS=',' read SUBJ_ID; do
 		exit 1
 	fi
 	
+	# convert files back to .nii.gz to use with FSL
 	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.mif")
-
+	DWI_MASK_D=$(find ${DWI_PATH} -name "*-dil2.mif")
+	
 	mrconvert ${DWI_FILE} "${DWI_FILE%.mif}.nii.gz"
-
+	mrconvert ${DWI_MASK_D} "${DWI_MASK_D%.mif}.nii.gz"
+	
 	DWI_FILE=$(find ${DWI_PATH} -name "*dwi_dn-preproc-bcor.nii.gz")
-	DWI_3D="${DWI_FILE%.nii.gz}-3D.nii.gz"
-
+	DWI_MASK_D=$(find ${DWI_PATH} -name "*-dil2.nii.gz")
+	
+	### run dtifit to get FA map
+	# Create folder for dtifit files
+	if [ ! -d ${DWI_PATH}/dtifit ]; then
+		echo "Creating output folder for dtifit"
+		mkdir ${DWI_PATH}/dtifit
+	else
+		echo "WARNING: Folder for dtifit already present. Old files should be deleted."
+	fi
+	
+	DTIFIT_PATH=${DWI_PATH}/dtifit
+	
+	# run dtifit
+	dtifit -k ${DWI_FILE} -o ${DTIFIT_PATH}/dtifit -m ${DWI_MASK_D} -r ${BVEC_FILE} -b ${BVAL_FILE}
+	
+	FAMAP=$(find ${DTIFIT_PATH} -name "dtifit_FA.nii.gz")
+	
+	if [ -z ${FAMAP} ]; then
+		echo 'ERROR: dtifit was not completed successfully (no FA map found).'
+		exit 1
+	fi
+	
+	### ants brain extraction on T1
+	
+	# Create folder for ANTs files
+	if [ ! -d ${ANAT_PATH}/ANTs ]; then
+		echo "Creating output folder for ANTs brain extraction"
+		mkdir ${ANAT_PATH}/ANTs
+	else
+		echo "WARNING: Folder for ANTs brain extraction already present. Old files should be deleted."
+	fi
+	
+	ANTS_FOLDER=${ANAT_PATH}/ANTs
+	
+	robustfov -i ${MPRAGE_FILE} -r "${ANAT_PATH}/sub-${SUBJ_ID}_T1w_fov.nii.gz"
+	MPRAGE_FOV=$(find ${ANAT_PATH} -name "*T1w_fov.nii.gz")
+	antsBrainExtraction.sh -d 3 -a ${MPRAGE_FOV} -e ${MNI2mm_whole} -m ${MNI2mm_mask} -o ${ANTS_FOLDER}/
+	# rename and copy files
+	cp ${ANTS_FOLDER}/BrainExtractionBrain.nii.gz ${ANAT_PATH}/sub-${SUBJ_ID}_T1w_brain.nii.gz
+	MPRAGE_BET=$(find ${ANAT_PATH} -name "*T1w_brain.nii.gz")
+	cp ${ANTS_FOLDER}/BrainExtractionMask.nii.gz ${ANAT_PATH}/sub-${SUBJ_ID}_T1w_brain-mask.nii.gz
+	MPRAGE_BET_MASK=$(find ${ANAT_PATH} -name "*T1w_brain-mask.nii.gz")
+	
 	# Create folder for transformation matrices
 	if [ ! -d ${ANAT_PATH}/registration_files ]; then
 		echo "Creating output folder for registration matrices"
@@ -325,26 +380,12 @@ while IFS=',' read SUBJ_ID; do
 	fi
 
 	REG_FOLDER=${ANAT_PATH}/registration_files
-
-	# Get 3D version of 4D DWI file
-	mrmath ${DWI_FILE} mean -axis 3 ${DWI_3D}
-
-	# BET on T1
-	### WARNING: Standard BET parameters might be to restrictive, resulting in cut-off grey matter
-	### Test different fractional intensity values (0 permissive - 1 restrictive; 0.5 = default)
-	echo "WARNING: FSL BET is performed with fractional intensity value of 0.2. The default of 0.5 often cuts into the cortex. Check images afterwards."
 	
-	robustfov -i ${MPRAGE_FILE} -r "${ANAT_PATH}/sub-${SUBJ_ID}_T1w_fov.nii.gz"
-	MPRAGE_FOV=$(find ${ANAT_PATH} -name "*T1w_fov.nii.gz")
-	MPRAGE_BET="${MPRAGE_FOV%.nii.gz}_bet.nii.gz"
-	bet ${MPRAGE_FOV} ${MPRAGE_BET} -f 0.2 -R
-	MPRAGE_BET=$(find ${ANAT_PATH} -name "*T1w*bet.nii.gz")
-
-	# get transform matrix T1->3D DWI
-	flirt -in ${MPRAGE_BET} -ref ${DWI_3D} -omat ${REG_FOLDER}/T12DWI.mat -dof 6
+	# get transform matrix T1->FA map
+	flirt -in ${MPRAGE_BET} -ref ${FAMAP} -omat ${REG_FOLDER}/T12DWI.mat -dof 6
 
 	# use mrtrix transformation to keep native voxel resolution
-	transformconvert ${REG_FOLDER}/T12DWI.mat ${MPRAGE_BET} ${DWI_3D} flirt_import ${REG_FOLDER}/T12DWI.mrtrix
+	transformconvert ${REG_FOLDER}/T12DWI.mat ${MPRAGE_BET} ${FAMAP} flirt_import ${REG_FOLDER}/T12DWI.mrtrix
 	mrtransform ${MPRAGE_BET} -linear ${REG_FOLDER}/T12DWI.mrtrix "${MPRAGE_BET%.nii.gz}_regDWI.nii.gz"
 	
 	MPRAGE_REG=$(find ${ANAT_PATH} -name "*regDWI.nii.gz")
